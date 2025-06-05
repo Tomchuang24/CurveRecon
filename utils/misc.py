@@ -216,3 +216,75 @@ def parse_experiment_name(name):
             'resolution': num_pnts + '_' + sample_method,
             'noise': noise,
         }
+
+
+import numpy as np
+from scipy.spatial import cKDTree
+from collections import defaultdict
+from itertools import combinations
+
+def laplacian_contraction(points, k=10, alpha=0.5, iterations=20):
+    tree = cKDTree(points)
+    new_points = points.copy()
+
+    for _ in range(iterations):
+        neighbors = tree.query(new_points, k=k + 1)[1][:, 1:]  # exclude self
+        neighbor_means = np.mean(new_points[neighbors], axis=1)
+        new_points = (1 - alpha) * new_points + alpha * neighbor_means
+
+    return new_points
+
+def smooth_heat(points, pred_heat, k=10, alpha=0.5, iterations=1):
+    """
+    Smooths the pred_heat values over the point cloud using KNN averaging.
+    
+    Args:
+        points: (N, 3) array of point positions.
+        pred_heat: (N,) array of heat values to smooth.
+        k: number of neighbors.
+        alpha: smoothing factor (0 = no smoothing, 1 = full neighbor average).
+        iterations: number of smoothing passes.
+        
+    Returns:
+        Smoothed pred_heat array.
+    """
+    tree = cKDTree(points)
+    smoothed = pred_heat.copy()
+
+    for _ in range(iterations):
+        idx = tree.query(points, k=k + 1)[1][:, 1:]  # exclude self
+        neighbor_heats = pred_heat[idx]
+        neighbor_mean = neighbor_heats.mean(axis=1)
+        smoothed = (1 - alpha) * smoothed + alpha * neighbor_mean
+        pred_heat = smoothed.copy()  # for next iteration
+
+    return smoothed
+
+def build_edge_graph_efficient(foreground_points, original_points, k=10):
+    # Build KDTree on original points
+    tree = cKDTree(original_points)
+
+    # Map: original point index → list of foreground point indices connected to it
+    reverse_map = defaultdict(list)
+
+    # For each foreground point, find kNN in original cloud
+    neighbor_indices = tree.query(foreground_points, k=k)[1]
+
+    for fg_idx, orig_neighbors in enumerate(neighbor_indices):
+        for orig_idx in orig_neighbors:
+            reverse_map[orig_idx].append(fg_idx)
+
+    # Create edge set from shared original neighbors
+    edge_set = set()
+    for fg_indices in reverse_map.values():
+        if len(fg_indices) > 1:
+            for i, j in combinations(fg_indices, 2):
+                edge = tuple(sorted((i, j)))
+                edge_set.add(edge)
+
+    return np.array(list(edge_set))
+
+def map_to_closest_original(contracted_points, original_points):
+    tree = cKDTree(original_points)
+    closest_indices = tree.query(contracted_points)[1]
+    return original_points[closest_indices], closest_indices
