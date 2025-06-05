@@ -205,18 +205,22 @@ class ConnectivityDataset(Dataset):
         eg = edge_grid_idx
         cubes = np.zeros((k,k,k), dtype=bool)
         faces = np.zeros((k,k,k,3), dtype=bool)
+        
         cubes[eg[:,0], eg[:,1], eg[:,2]] = True
         faces[eg[:,0], eg[:,1], eg[:,2]] = nerve_data['cube_faces']
         
-        # #for now don't care about the geometry
-        # cube_points = nerve_data['cube_points']
-        # step = 2. / k
-        # # transform points to local cube coordinates
-        # centers = step*edge_grid_idx + (step/2. - 1.)
-        # cube_points -= centers
-        # cube_points *= k # ocuupied cube center
+        # grids where the feature passed
+        cpoints = nerve_data['cube_points']
+        step = 2. / k
+        # transform points to local cube coordinates
+        centers = step*edge_grid_idx + (step/2. - 1.)
+        cpoints -= centers
+        cpoints *= k # ocuupied cube center
 
- 
+        cube_points= np.zeros((k,k,k,3), dtype=bool)
+        cube_points[eg[:,0], eg[:,1], eg[:,2]] = cpoints
+
+
         if not self.use_fps_knn:
             # Default random sampling
             N = points.shape[0]
@@ -255,9 +259,6 @@ class ConnectivityDataset(Dataset):
             grouped_heat = heat_sub[gather_idx]      # (20, 1024)
             grouped_pc_grid_idxs = pc_grid_idxs_sub[gather_idx] # (20, 1024, 3)
         
-            # grouped_points = torch.stack([points_sub[idxs] for idxs in gather_idx])  # (fps_K, knn_K, 3)
-            # grouped_heat = torch.stack([heat_sub[idxs] for idxs in gather_idx])      # (fps_K, knn_K)
-            # grouped_pc_grid_idxs = torch.stack([grouped_pc_grid_idxs[idxs] for idxs in gather_idx]) 
 
             if self.transform is not None:
                 # Apply transform per patch
@@ -272,6 +273,8 @@ class ConnectivityDataset(Dataset):
 
             grouped_cube_ids = []
             cube_valid_masks = []
+
+            
 
             max_cubes = 0
             for i in range(fps_K):
@@ -290,7 +293,6 @@ class ConnectivityDataset(Dataset):
                 grouped_cube_ids_padded[i, :M_i] = grouped_cube_ids[i]
                 cube_valid_masks_padded[i, :M_i] = cube_valid_masks[i]
 
-
             return {
                 'grouped_points': grouped_points.float(),                    # (fps_K, knn_K, 3)
                 'grouped_heat': grouped_heat.float(),                        # (fps_K, knn_K)
@@ -299,6 +301,7 @@ class ConnectivityDataset(Dataset):
                 'grouped_cube_mask': cube_valid_masks_padded,                # (fps_K, max_M)
                 'cubes': torch.from_numpy(cubes),                            # (k, k, k)
                 'faces': torch.from_numpy(faces),                            # (k, k, k, 3)
+                'cube_points': torch.from_numpy(cube_points).float()         # (k, k, k, 3)
             }
 
 
