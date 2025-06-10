@@ -338,18 +338,6 @@ class HeatFieldFullPatchTestDataset(Dataset):
         with open(pkl_path, 'rb') as f:
             data = pickle.load(f)
 
-        # points = torch.from_numpy(data['points'].astype(np.float32))  # (N, 3)
-        # heat = torch.from_numpy(data['heat'].astype(np.float32))      # (N,)
-
-        # center_idx = torch.randperm(points.shape[0])[:self.fps_K]
-        # centers = points[center_idx]
-
-        # knn = knn_points(centers.unsqueeze(0), points.unsqueeze(0), K=self.knn_K)
-        # gather_idx = knn.idx.squeeze(0)
-
-        # patch_points = torch.stack([points[idxs] for idxs in gather_idx])
-        # patch_indices = gather_idx  # To stitch later
-
         points = torch.from_numpy(data['points'].astype(np.float32))  # (N, 3)
         heat = torch.from_numpy(data['heat'].astype(np.float32))      # (N,)
         N = points.shape[0]

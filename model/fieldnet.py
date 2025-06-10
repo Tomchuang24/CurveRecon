@@ -54,13 +54,13 @@ class EdgeCubeNet(nn.Module):
         self.feature_net = FeatureExtraction()
 
         self.conv3d = nn.Sequential(
-        nn.Conv3d(self.feature_net.out_channels, self.feature_net.out_channels, kernel_size=3, padding=1),
+        nn.Conv3d(self.feature_net.out_channels, self.feature_net.out_channels//2, kernel_size=3, padding=1),
         #nn.BatchNorm3d(self.feature_net.out_channels),
         nn.ReLU(inplace=True)
         )
       
         self.score_net = ScoreNet(
-            z_dim=self.feature_net.out_channels,
+            z_dim=self.feature_net.out_channels//2,
             out_dim=1,
             hidden_size=args.score_net_hidden_dim,
             num_blocks=args.score_net_num_blocks,

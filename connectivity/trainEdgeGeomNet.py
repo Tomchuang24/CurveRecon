@@ -116,6 +116,11 @@ if __name__ == '__main__':
         rotate=False,
     )
 
+    test_transforms = standard_train_transforms(noise_std_max=args.val_noise, 
+                                                 noise_std_min=args.val_noise, 
+                                                 rotate=False, 
+                                                 scale_d=0)
+
     if torch.cuda.device_count() > 1:
         print(f"Using {torch.cuda.device_count()} GPUs.")
         model = torch.nn.DataParallel(model)
@@ -123,7 +128,7 @@ if __name__ == '__main__':
     train_dataset = ConnectivityDataset(
             split='train',
             transform=train_transforms,
-            overfit_mode=True,
+            overfit_mode=False,
             overfit_batch = 8,
             use_fps_knn=True,
             fps_K=20,
@@ -137,14 +142,33 @@ if __name__ == '__main__':
     collate_fn=connectivity_collate_fn  # <-- this is crucial
     )
 
+
+    val_dataset = ConnectivityDataset(
+            split='val',
+            transform=train_transforms,
+            overfit_mode=False,
+            overfit_batch = 8,
+            use_fps_knn=True,
+            fps_K=20,
+            knn_K=args.batch_points
+            )
+    
+    val_loader = DataLoader(
+    val_dataset,
+    batch_size=8,
+    shuffle=True,
+    collate_fn=connectivity_collate_fn  # <-- this is crucial
+    )
+
     log_dir = Path("/home/tianz/project/CurveRecon/logs")
     log_dir.mkdir(parents=True, exist_ok=True)
     loss_log = []
     MIOU_Log = []
     val_loss_log = []
 
-    best_model_path = os.path.join(log_dir, "EdgeCubeNet.pth")
+    best_model_path = os.path.join(log_dir, "EdgeGeomNet.pth")
     best_val_loss = float('inf')
+
 
     loss_fn = torch.nn.L1Loss()
 
@@ -225,73 +249,82 @@ if __name__ == '__main__':
             print(f"Learning rate decayed to {scheduler.get_last_lr()[0]:.6e}")
 
 
-        # model.eval()
-        # val_loss_total = 0.0
-        # with torch.no_grad():
-        #     # Evaluation
-        #     print("Running validation...")
+        model.eval()
+        val_loss_total = 0.0
+        with torch.no_grad():
+            # Evaluation
+            print("Running validation...")
             
-        #     for data in train_loader:
-        #     # xyz_batch: [B, fps_K, knn_K, 3]
-        #     # heat_gt_batch: [B, fps_K, knn_K]
-        #         B, P, K, _ = data['grouped_points'].shape
-        #         _, M, _ = data['grouped_cube_ids'].shape
+            for data in val_loader:
+            # xyz_batch: [B, fps_K, knn_K, 3]
+            # heat_gt_batch: [B, fps_K, knn_K]
+                # xyz_batch: [B, fps_K, knn_K, 3]
+            # heat_gt_batch: [B, fps_K, knn_K]
+                B, P, K, _ = data['grouped_points'].shape
+                _, M, _ = data['grouped_cube_ids'].shape
 
-        #         # Flatten B * P into batch dimension
-        #         model_input = {
-        #             'grouped_points':        data['grouped_points'].view(B * P, K, 3).to(device),      # (B*P, K, 3)
-        #             'grouped_pc_grid_idxs':  data['grouped_pc_grid_idxs'].view(B * P, K, 3).to(device),# (B*P, K, 3)
-        #             'grouped_cube_ids':      data['grouped_cube_ids'].view(B * P, M, 3).to(device),    # (B*P, M, 3)
-        #             'grouped_cube_mask':     data['grouped_cube_mask'].view(B * P, M).to(device),      # (B*P, M)
-        #         }
                 
-        #         cube_occupancy = model(model_input)
 
-        #         # Predicted occupancy
-        #         pred_occupancy = cube_occupancy['pc_cube']  # (B*P, M)
-        #         # Get ground truth cubes: shape (B, k, k, k)
-        #         cubes = data['cubes'].to(device)  # (B, k, k, k)
+                # Flatten B * P into batch dimension
+                model_input = {
+                    'grouped_points':        data['grouped_points'].view(B * P, K, 3).to(device),      # (B*P, K, 3)
+                    'grouped_pc_grid_idxs':  data['grouped_pc_grid_idxs'].view(B * P, K, 3).to(device),# (B*P, K, 3)
+                    'grouped_cube_ids':      data['grouped_cube_ids'].view(B * P, M, 3).to(device),    # (B*P, M, 3)
+                    'grouped_cube_mask':     data['grouped_cube_mask'].view(B * P, M).to(device),      # (B*P, M)
+                    'cubes':                 data['cubes'].to(device),                          # (B, k, k, k, 3)
+                }
+                
+                cube_geom = model(model_input)
 
-        #         # Flatten and move everything to device
-        #         grouped_cube_ids = model_input['grouped_cube_ids']     # (B*P, M, 3)
-        #         grouped_cube_mask = model_input['grouped_cube_mask']      # (B*P, M)
-        #         # Map each patch to its original sample index in the batch
-        #         cube_batch_ids = (torch.arange(B * P, device=device) // P).unsqueeze(1)       # (B*P, 1), broadcastable
-        #         # Extract voxel indices
-        #         x = grouped_cube_ids[..., 0]  # (B*P, M)
-        #         y = grouped_cube_ids[..., 1]
-        #         z = grouped_cube_ids[..., 2]
+                # Predicted occupancy
+                pred_geom = cube_geom['points']  # (B*P, M, 3)
+                # Get ground truth cubes: shape (B, k, k, k)
+                cubes = data['cubes'].to(device)  # (B, k, k, k)
+                cube_points = data['cube_points'].to(device) # (B, k, k, k)
 
-        #         # Index ground truth occupancy
-        #         gt_occupancy = cubes[cube_batch_ids, x, y, z].to(device)                                  # (B*P, M)
+                # Flatten and move everything to device
+                grouped_cube_ids = model_input['grouped_cube_ids']     # (B*P, M, 3)
+                grouped_cube_mask = model_input['grouped_cube_mask']      # (B*P, M)
+                # Map each patch to its original sample index in the batch
+                cube_batch_ids = (torch.arange(B * P, device=device) // P).unsqueeze(1)       # (B*P, 1), broadcastable
+                # Extract voxel indices
+                x = grouped_cube_ids[..., 0]  # (B*P, M)
+                y = grouped_cube_ids[..., 1]
+                z = grouped_cube_ids[..., 2]
+                # Index ground truth occupancy
+                gt_occupancy = cubes[cube_batch_ids, x, y, z]                               # (B*P, M)
+                gt_geom      = cube_points[cube_batch_ids, x, y, z]                         # (B*P, M, 3)
+                # Apply mask to ignore padded cube ids
+                gt_occupancy = (gt_occupancy * grouped_cube_mask).float()                               # (B*P, M)
+                gt_occupancy_mask = (gt_occupancy > 0.5)
 
-        #         # Apply mask to ignore padded cube ids
-        #         gt_occupancy = (gt_occupancy * grouped_cube_mask).float()                               # (B*P, M)
-        #         pred_occupancy = (pred_occupancy * grouped_cube_mask).float()                           # (B*P, M)
+                # Select predicted points at ground truth positive voxels
+                pred_geom_at_gt = pred_geom[gt_occupancy_mask]  
+                gt_geom_valid   = gt_geom[gt_occupancy_mask]
+                
+    
+                loss = loss_fn(pred_geom_at_gt, gt_geom_valid)
 
-        #         # === Loss Computation (example with BCEWithLogitsLoss or MSE) ===
-        #         loss = F.binary_cross_entropy(pred_occupancy, gt_occupancy)
+                val_loss_total += loss.item()
 
-        #         val_loss_total += loss.item()
+        val_loss_avg = val_loss_total / len(val_loader)
 
-        # val_loss_avg = val_loss_total / len(train_loader)
-
-        # val_loss_log.append(val_loss_avg)
-        # print(f"[Epoch {epoch+1:03d}] Val Loss = {val_loss_avg:.6f}")
-        # if val_loss_avg < best_val_loss:
-        #     best_val_loss = val_loss_avg
-        #     if isinstance(model, torch.nn.DataParallel):
-        #         torch.save(model.module.state_dict(), best_model_path)
-        #     else:
-        #         torch.save(model.state_dict(), best_model_path)
-        #     print(f"✅ Saved new best model with loss {best_val_loss:.6f}")
+        val_loss_log.append(val_loss_avg)
+        print(f"[Epoch {epoch+1:03d}] Val Loss = {val_loss_avg:.6f}")
+        if val_loss_avg < best_val_loss:
+            best_val_loss = val_loss_avg
+            if isinstance(model, torch.nn.DataParallel):
+                torch.save(model.module.state_dict(), best_model_path)
+            else:
+                torch.save(model.state_dict(), best_model_path)
+            print(f"✅ Saved new best model with loss {best_val_loss:.6f}")
                 
 
     plot = True
     if plot:
         plt.figure()
-        plt.plot(loss_log, label='L1_train', color='blue')
-        #plt.plot(val_loss_log, label='Validation Loss', color='orange')
+        plt.plot(loss_log, label='Train Loss', color='blue')
+        plt.plot(val_loss_log, label='Validation Loss', color='orange')
         plt.xlabel("Epoch")
         plt.ylabel("Loss")
         plt.title("Training loss Curve of mid-point of curve-edges")

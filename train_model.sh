@@ -4,7 +4,10 @@ source $HOME/miniconda3/etc/profile.d/conda.sh
 #gdown --id 15t7lh1NhyZ1n1w8vhxQvJsFTRMkReK1U
 conda activate score-denoise
 cd /home/tianz/project/CurveRecon/
-python train.py --epochs 100
-python test.py
+#python train.py --epochs 100
+python trainEdgeCubeNet.py --epochs 10
+python trainEdgeFaceNet.py --epochs 10
+python trainEdgeGeomNet.py --epochs 10
+#python test.py
 
 
