@@ -1,5 +1,5 @@
 
-# Learning General Distance to Feature Field for Shape Modelling
+# Deep Contour Detection for Enhanced Heritage Sites Visualization by Laser Point Clouds
 
 **Authors:** Tian Zhang, Sagi Filin  
 **Affiliation:** Technion – Israel Institute of Technology
@@ -12,7 +12,6 @@ This project introduces a learning-based framework for predicting **general Dist
 
 Our method enables:
 - Sharp feature detection
-- Curve reconstruction from dense fields
 - Geometry-aware shape understanding
 - Robust modeling across varying scales and shapes
 
@@ -23,7 +22,6 @@ Our method enables:
 - 📌 **Patch-based heat field learning** using FPS + KNN sampling  
 - 🔁 **Min-based stitching** to aggregate overlapping patch predictions  
 - 📐 **Loss functions**: Histogram-based + L1 loss for fine-grained distance regression  
-- 🧩 **Feature curve reconstruction** through voxel graph and spline fitting  
 - 🔬 **Polyscope visualization** for interactive inspection
 
 ---
@@ -47,8 +45,7 @@ DistanceFeatureField/
 ## ⚙️ Setup
 
 ```bash
-git clone https://github.com/yourusername/DistanceFeatureField.git
-cd DistanceFeatureField
+git clone 
 pip install -r requirements.txt
 ```
 
@@ -67,21 +64,7 @@ Ground truth is computed via OpenCascade and saved in `.pkl` files under `data/N
 
 ---
 
-## 🚀 Training
-
-```bash
-python train.py --batch_points 1024 --fps_K 20
-```
-
-Trains the model using patch-based sampling and geometry-aware loss.
-
----
-
 ## 🧪 Testing and Visualization
-
-```bash
-python test.py --eval --save_vis
-```
 
 Evaluates predictions and stitches them using min aggregation.  
 Polyscope can be used to visualize the output heat maps on full shapes.
@@ -105,11 +88,14 @@ ps.show()
 If you find this project useful, please cite:
 
 ```bibtex
-@article{zhang2025dff,
-  title={Learning General Distance to Feature Field for Shape Modelling},
+@article{zhang2025deep,
+  title={Deep Contour Detection for Enhanced Heritage Sites Visualization by Laser Point Clouds},
   author={Zhang, Tian and Filin, Sagi},
-  journal={arXiv preprint arXiv:2506.XXXX},
-  year={2025}
+  journal={The International Archives of the Photogrammetry, Remote Sensing and Spatial Information Sciences},
+  volume={48},
+  pages={1699--1704},
+  year={2025},
+  publisher={Copernicus GmbH}
 }
 ```
 
